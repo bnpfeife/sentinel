@@ -1,0 +1,62 @@
+#!/usr/local/share/sentinel/bin/python3
+import config
+import engine
+import filesystem as fs
+import sys
+import os.path
+import re
+import subprocess
+import time
+
+settings = config.load(sys.argv[1]
+    if len(sys.argv) > 1 else 'config.yaml')
+
+while True:
+    for target in settings['targets']:
+        matching_src = fs.get_matching(
+            target['src'],
+            target['include_regex'],
+            target['exclude_regex'])
+
+        matching_dst = fs.get_matching(
+            target['dst'],
+            # Destination paths (generally) do not match the source paths;
+            # therefore, the regex used to find the destination files
+            # cannot be used. At some point, the configuration may
+            # specify regex, for both source and destination.
+            [ re.compile('.*') ], [])
+
+        modified_src = fs.get_modified_times(target['src'], matching_src)
+        modified_dst = fs.get_modified_times(target['dst'], matching_dst)
+
+        src = engine.build_keys(modified_src)
+        dst = engine.build_keys(modified_dst)
+
+        src_missing = engine.detect_missing(dst, src)
+        dst_missing = engine.detect_missing(src, dst)
+        # Determines if a source file changed on disk since the previous
+        # iteration. On the first iteration of this loop, the cached
+        # variable has not been initialized; therefore, pass an
+        # empty dictionary to detect_modified().
+        modified = engine.detect_modified(settings['interval'], src,
+            target['cached'] if 'cached' in target else {})
+        target['cached'] = src
+
+
+        for k,v in { **modified, **dst_missing }.items():
+            p0 = os.path.join(target['src'], v[0])
+            p1 = os.path.join(target['dst'], k)
+            p2 = os.path.dirname(p1)
+            for command in target['commands']:
+                subprocess.call([ a.format(p0, p1, p2) for a in command ])
+
+
+        for k,v in src_missing.items():
+            p0 = os.path.join(target['dst'], v[0])
+            p1 = os.path.dirname(p0)
+            os.remove(p0)
+            if not os.listdir(p1):
+                os.rmdir(p1)
+
+
+        time.sleep(settings['interval'])

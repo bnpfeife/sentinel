@@ -1,0 +1,11 @@
+[Unit]
+Description=File Sentinel
+
+[Service]
+User=%i
+ExecStart=/usr/local/bin/sentinel/sentinel /etc/sentinel-%i.yaml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

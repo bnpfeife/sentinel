@@ -1,0 +1,12 @@
+---
+interval: 5
+targets:
+ - src: 'source directory'
+   dst: 'destination directory'
+   exclude_regex:
+     - 'exclude path regex'
+   include_regex:
+     - 'include path regex'
+   commands:
+     - [ 'command', 'args' ]
+
